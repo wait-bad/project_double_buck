@@ -65,6 +65,8 @@ uint32_t set_duty_min  = 0;
 uint16_t tim_add_counter = 0;
 uint16_t refresh_flag    = 0;
 
+//
+
 /******************************************/
        //function
 void RCCCLOCK_Init(void);
@@ -248,6 +250,7 @@ void GPIO_Configuration(void)
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 }
+
 
 
 /**
