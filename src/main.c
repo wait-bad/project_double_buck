@@ -23,6 +23,9 @@
 #include "adc.h"
 #include "aizi.h"
 #include "mos_ctrl.h"
+#include "Serial.h"
+//#include "Serial.c"
+
 
 #define OPTPARSE_API static
 #include "optparse.h"
@@ -64,8 +67,13 @@ uint32_t set_duty_min  = 0;
 // flag
 uint16_t tim_add_counter = 0;
 uint16_t refresh_flag    = 0;
-
+//uint16_t Serial_RxFlag   = 0;
 //
+
+/************************/
+uint16_t  test__ = 0;
+uint8_t    test_flag = 0;
+uint8_t RxData;
 
 /******************************************/
        //function
@@ -81,7 +89,7 @@ void set_duty_max__(uint16_t duty_max);
 
 void control_output_b();
 void control_output_a();
-
+void uart_NVIC_Configuration(void);
 
 /*******************************************/
 
@@ -252,6 +260,75 @@ void GPIO_Configuration(void)
 }
 
 
+// Initialize USART1
+void uart_init(u32 bound) {
+    //GPIO端口设置
+    GPIO_InitTypeDef GPIO_InitStructure;
+    USART_InitTypeDef USART_InitStructure;
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOA, ENABLE);	//使能USART1，GPIOA时钟
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
+    GPIO_PinRemapConfig(GPIO_Remap_USART1, ENABLE);
+//	//USART1_TX   GPIOA.9
+//  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9; //PA.9
+//  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+//  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;	//复用推挽输出
+//  GPIO_Init(GPIOA, &GPIO_InitStructure);//初始化GPIOA.9
+//
+//  //USART1_RX	  GPIOA.10初始化
+//  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;//PA10
+//  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;//浮空输入
+//  GPIO_Init(GPIOA, &GPIO_InitStructure);//初始化GPIOA.10
+    /* TX PB6 */
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+    /*  RX PB7 */
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
+    GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+    //Usart1 NVIC 配置
+    NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1 ; //抢占优先级3
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;		//子优先级3
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;			//IRQ通道使能
+    NVIC_Init(&NVIC_InitStructure);	//根据指定的参数初始化VIC寄存器
+
+    //USART 初始化设置
+
+    USART_InitStructure.USART_BaudRate = bound;//串口波特率
+    USART_InitStructure.USART_WordLength = USART_WordLength_8b;//字长为8位数据格式
+    USART_InitStructure.USART_StopBits = USART_StopBits_1;//一个停止位
+    USART_InitStructure.USART_Parity = USART_Parity_No;//无奇偶校验位
+    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;//无硬件数据流控制
+    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;	//收发模式
+
+    USART_Init(USART1, &USART_InitStructure); //初始化串口1
+    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);//开启串口接受中断
+    USART_Cmd(USART1, ENABLE);                    //使能串口1
+
+}
+
+// Configure NVIC for USART1
+void uart_NVIC_Configuration(void) {
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    // Enable the USART1 interrupt
+    NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
+    // Enable the USART1 global interrupt
+    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+}
+
 
 /**
  * @brief init all system hardware
@@ -267,6 +344,10 @@ uint8_t system_all_init()
     AD_Init();
     TIM1_Configuration();
     GPIO_Configuration();
+    //uart_NVIC_Configuration();
+    //USART1_Init();
+    uart_init(115200);
+    //Serial_Init();
     //Timer_Init();
     MOS_gpio_Init();
     return 1;
@@ -289,7 +370,14 @@ int main()
     count_un_ctrl_parameter();
     while (9) 
     {
-      Delay_ms(10);
+        //Delay_ms(1000);
+        //Serial_SendString("hello world\n");
+		if (Serial_GetRxFlag() == 1)
+		{
+			RxData = Serial_GetRxData();
+			Serial_SendByte(RxData);
+		}
+        
     }
 }
 
@@ -317,22 +405,6 @@ void show_decimals(char dir, char x, unsigned char y, unsigned long datab)
     lcd12864_show_n(dir, x, y + 8 + 8, 12);
     lcd12864_show_nmuber(dir, x, y + 16 + 8, 3, datab % 1000);
 };
-
-void TIM1_UP_IRQHandler(void)
-{
-    int16_t dif_value = 0;
-    uint16_t duty;
-    int32_t last_time_duty;
-    if (TIM_GetITStatus(TIM1, TIM_IT_Update) == SET)
-    {
-      // 清除中断标志
-      TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
-      g2_set(0);
-
-      control_output_b();
-      control_output_a();
-    }
-}
 
 void control_output_b()
 {
@@ -365,3 +437,20 @@ void set_duty_max__(uint16_t duty_max)
 {
   set_duty_max = duty_max;
 }
+
+void TIM1_UP_IRQHandler(void)
+{
+    int16_t dif_value = 0;
+    uint16_t duty;
+    int32_t last_time_duty;
+    if (TIM_GetITStatus(TIM1, TIM_IT_Update) == SET)
+    {
+      // 清除中断标志
+      TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
+      g2_set(0);
+
+      control_output_b();
+      control_output_a();
+    }
+}
+
