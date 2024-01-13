@@ -29,7 +29,7 @@
 
 #define OPTPARSE_API static
 #include "optparse.h"
-
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -46,6 +46,9 @@ int32_t constant         = 8192;//constant = 0.0001;
 uint16_t set_Reload_value = 609; //  freq = 177k
 uint16_t set_duty_max_value = 609;
 uint16_t set_duty_min_value = 1;
+uint16_t voltage_limit     = 23;//v
+uint16_t current_limit      = 5;//a
+
 
 uint16_t led__ = 0;
 
@@ -64,6 +67,8 @@ int32_t voltage_duty_2 = 0;
 uint32_t set_duty_max  = 0;
 uint32_t set_duty_min  = 0;
 
+uint8_t commmand_first_5[5];
+
 // flag
 uint16_t tim_add_counter = 0;
 uint16_t refresh_flag    = 0;
@@ -74,6 +79,7 @@ uint16_t refresh_flag    = 0;
 uint16_t  test__ = 0;
 uint8_t    test_flag = 0;
 uint8_t RxData;
+uint8_t* array;
 
 /******************************************/
        //function
@@ -86,11 +92,17 @@ void count_un_ctrl_parameter();
 void show_decimals(char dir, char x, unsigned char y, unsigned long datab);
 void set_duty_max__(uint16_t duty_max);
 
+void set_set_current_1(float current);
+void set_set_current_2(float current);
+void set_set_voltage_1(float voltage);
+void set_set_voltage_2(float voltage);
+
+
 
 void control_output_b();
 void control_output_a();
 void uart_NVIC_Configuration(void);
-
+uint16_t uart_count_parameters(uint8_t flag , uint8_t* array);
 /*******************************************/
 
 void RCCCLOCK_Init(void)
@@ -360,6 +372,7 @@ uint8_t system_all_init()
  */
 int main()
 {
+    uint8_t i;
     system_all_init();
     set_duty_max__(500);
     set_current_1 = 5.5;
@@ -368,16 +381,12 @@ int main()
     set_voltage_2 = 8.45;
 
     count_un_ctrl_parameter();
+    printf("HELLO_WORLD");
     while (9) 
     {
-        //Delay_ms(1000);
+        Delay_ms(100);
         //Serial_SendString("hello world\n");
-		if (Serial_GetRxFlag() == 1)
-		{
-			RxData = Serial_GetRxData();
-			Serial_SendByte(RxData);
-		}
-        
+        uart_count_parameters(Serial_GetRxFlag(),receive_data_send_back());
     }
 }
 
@@ -436,6 +445,105 @@ void control_output_a()
 void set_duty_max__(uint16_t duty_max)
 {
   set_duty_max = duty_max;
+}
+
+
+uint16_t uart_count_parameters(uint8_t flag, uint8_t* array)
+{
+    char array_command[7];
+    char array_settings[6];
+    float numebr;
+    if (flag == 1)
+    {
+        // 将array的前6个字符复制到array_command中
+        strncpy(array_command, (char*)array,6);
+        array_command[6] = '\0';  // 添加字符串结尾符
+
+        // 将array的后5个字符复制到array_settings中
+        strncpy(array_settings, (char*)(array + 6), 5);
+        array_settings[5] = '\0';  // 添加字符串结尾符
+        numebr = atoi(array_settings);
+
+        // 根据命令类型执行相应的操作
+        if (strcmp(array_command, "set_1v") == 0) {
+            // 执行设置1V的操作
+            printf("Setting 1V with parameters: %0.2fV\n", numebr/100);
+        } else if (strcmp(array_command, "set_2v") == 0) {
+            // 执行设置2V的操作
+            printf("Setting 2V with parameters: %0.2fV\n", numebr/100);
+        } else if (strcmp(array_command, "set_1a") == 0) {
+            // 执行设置1A的操作
+            printf("Setting 1A with parameters: %0.3fA\n", numebr/1000);
+        } else if (strcmp(array_command, "set_2a") == 0) {
+            // 执行设置2A的操作
+            printf("Setting 2A with parameters: %0.3fA\n", numebr/1000);
+        } else if (strcmp(array_command, "hello_") == 0) {
+            // 执行设置2A的操作
+            printf("hello my friend,wish you have a good day.\n");
+            printf("    *****   \n");
+            printf("  *       *  \n");
+            printf(" *  O   O  * \n");
+            printf(" *    ^    * \n");
+            printf("  *  \\__/  *  \n");
+            printf("   *     *   \n");
+            printf("    *****    \n");
+        } else if (strcmp(array_command, "limit_") == 0) {
+            // 执行设置2A的操作
+            printf("voltage limit = %d\nV" , voltage_limit);
+            printf("current limit = %d\nA" , current_limit);
+        }
+        else {
+            // 未知命令
+            printf("Unknown command: %s\n", array_command);
+        }
+        Serial_setflag_0();
+    }
+    return 0; // 这里需要根据实际情况返回一个值
+}
+
+void set_set_current_1(float current)
+{
+    if (current<= 0){
+        current = 0;
+    }
+    else if(current>current_limit){
+        current = current_limit;
+    }
+    set_current_1 = current ;
+}
+void set_set_current_2(float current)
+{
+    if (current<= 0){
+        current = 0;
+    }
+    else if(current>current_limit){
+        current = current_limit;
+    }
+    set_current_2 = current ;
+}
+
+void set_set_voltage_1(float voltage)
+{
+    if (voltage <= 0){
+        voltage = 0;
+    }
+    else if (voltage> voltage_limit)
+    {
+        voltage = voltage_limit;
+    }
+    set_voltage_1 = voltage;
+}
+
+void set_set_voltage_2(float voltage)
+{
+    if (voltage <= 0){
+        voltage = 0;
+    }
+    else if (voltage> voltage_limit)
+    {
+        voltage = voltage_limit;
+    }
+    set_voltage_2 = voltage;
 }
 
 void TIM1_UP_IRQHandler(void)

@@ -1,9 +1,14 @@
 #include "stm32f10x.h"                  // Device header
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 
 uint8_t Serial_RxData;
 uint8_t Serial_RxFlag;
+uint8_t receive_data[20];
+uint16_t conunt=0;
+uint8_t myarray[5] = {1, 2, 3, 4, 5};
+
 
 void Serial_Init(void)
 {
@@ -107,10 +112,16 @@ uint8_t Serial_GetRxFlag(void)
 {
 	if (Serial_RxFlag == 1)
 	{
-		Serial_RxFlag = 0;
+		
 		return 1;
 	}
 	return 0;
+}
+
+void  Serial_setflag_0()
+{
+	Serial_RxFlag = 0;
+	memset(receive_data,0,sizeof(receive_data));
 }
 
 uint8_t Serial_GetRxData(void)
@@ -119,12 +130,29 @@ uint8_t Serial_GetRxData(void)
 }
 
 
+uint8_t* receive_data_send_back()
+{
+	return receive_data;
+	//return myarray;
+}
+
 void USART1_IRQHandler(void)
 {
+	uint8_t buff;
 	if (USART_GetITStatus(USART1, USART_IT_RXNE) == SET)
 	{
-		Serial_RxData = USART_ReceiveData(USART1);
-		Serial_RxFlag = 1;
+		/*Serial_RxData = USART_ReceiveData(USART1);
+		Serial_RxFlag = 1;*/
+		buff = USART_ReceiveData(USART1);
+		if ( buff == ' ')
+		{
+			Serial_RxFlag = 1;
+			conunt = 0;
+		}
+		else
+		{
+			receive_data[conunt++] = buff; 
+		}
 		USART_ClearITPendingBit(USART1, USART_IT_RXNE);
 	}
 }
